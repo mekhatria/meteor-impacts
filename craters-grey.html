@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Impact Craters Through Time (Grey)</title>
+<script>try { const t = localStorage.getItem('meteor-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@13.1.1/highmaps.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@13.1.1/modules/accessibility.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --land: #e9e8e3; --land-edge: #d6d5ce; --ocean: #fcfcfb;
+  --border: rgba(11,11,11,0.10);
+  --crater: #2a78d6; --fireball: #2a78d6; --new: #e34948; --past: #2a78d6; --past-alpha: 0.28;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --land: #2c2c2a; --land-edge: #3a3a37; --ocean: #1a1a19;
+    --border: rgba(255,255,255,0.10);
+    --crater: #3987e5; --fireball: #3987e5; --new: #e66767; --past: #3987e5; --past-alpha: 0.28;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --land: #2c2c2a; --land-edge: #3a3a37; --ocean: #1a1a19;
+  --border: rgba(255,255,255,0.10);
+  --crater: #3987e5; --fireball: #3987e5; --new: #e66767; --past: #3987e5; --past-alpha: 0.28;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 32px; }
+header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; --accent: var(--fireball); }
+header .theme { flex: none; }
+header h1 { font-size: 24px; margin: 0 0 4px; font-weight: 650; letter-spacing: -0.01em; }
+header p { margin: 0; color: var(--ink2); max-width: 820px; }
+.grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
+.panel h2 { font-size: 17px; margin: 0; font-weight: 650; }
+.panel .sub { color: var(--ink2); margin: 2px 0 12px; font-size: 13px; }
+.frame { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.frame .now { font-size: 22px; font-weight: 650; }
+.frame .range { color: var(--ink2); font-size: 13px; }
+.stats { display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px; color: var(--ink2); margin-bottom: 8px; }
+.stats b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.map { height: 560px; }
+@media (max-width: 700px) { .map { height: 320px; } }
+.tl { height: 120px; }
+.tl-title { font-size: 12px; color: var(--ink2); margin-top: 12px; }
+.controls { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.controls button { appearance: none; border: 1px solid var(--border); background: var(--page); color: var(--ink); border-radius: 999px; height: 36px; min-width: 92px; padding: 0 16px; font: inherit; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; justify-content: center; }
+.controls button[data-sound] { min-width: 0; font-weight: 500; font-size: 13px; padding: 0 12px; white-space: nowrap; }
+.controls button:hover { border-color: var(--axis); }
+.controls button:focus-visible, .controls input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.controls input[type=range] { flex: 1; accent-color: var(--accent); min-width: 0; }
+.key { display: flex; gap: 16px; font-size: 12px; color: var(--ink2); margin-top: 8px; flex-wrap: wrap; }
+.key span { display: inline-flex; align-items: center; gap: 6px; }
+.key i { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); display: inline-block; }
+.key i.past { background: var(--past); opacity: calc(var(--past-alpha) + 0.02); }
+.key i.new { background: var(--new); }
+.speed { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); }
+.speed .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; background: var(--page); }
+.speed .seg button { appearance: none; border: 0; background: transparent; color: var(--ink2); font: inherit; font-size: 12px; font-weight: 600; height: 28px; min-width: 40px; padding: 0 8px; border-radius: 999px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.speed .seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+.speed .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (max-width: 600px) { .controls { flex-wrap: wrap; } .controls input[type=range] { flex-basis: 100%; order: 3; } }
+#craters { --accent: var(--crater); }
+#fireballs { --accent: var(--fireball); }
+/* Impact effects: pop, flash, shockwave rings, glow while new */
+.impact-now .highcharts-point { transition: filter 0.5s ease-out; }
+.hot .impact-now .highcharts-point { filter: drop-shadow(0 0 3px var(--new)) drop-shadow(0 0 9px var(--new)); }
+.impact-pop { transform-box: fill-box; transform-origin: center; animation: impact-pop 0.55s cubic-bezier(.2,.9,.3,1.4) both; }
+@keyframes impact-pop { from { transform: scale(0); opacity: 0; } 55% { opacity: 1; } to { transform: scale(1); opacity: 1; } }
+.impact-flash, .impact-ring { pointer-events: none; transform-box: fill-box; transform-origin: center; }
+.impact-flash { fill: #fff; animation: impact-flash 0.6s ease-out both; }
+@keyframes impact-flash { from { transform: scale(0.2); opacity: 0.95; } to { transform: scale(1.5); opacity: 0; } }
+.impact-ring { fill: none; stroke: var(--new); animation: impact-ring 1.3s cubic-bezier(.1,.6,.3,1) both; }
+@keyframes impact-ring { from { transform: scale(0.6); opacity: 0.9; stroke-width: 2.5px; } to { transform: scale(4); opacity: 0; stroke-width: 0.4px; } }
+@media (prefers-reduced-motion: reduce) { .impact-pop { animation: none; } .impact-flash, .impact-ring { display: none; } }
+footer { margin-top: 20px; color: var(--ink2); font-size: 12px; max-width: 980px; }
+footer p { margin: 4px 0; }
+footer a { color: inherit; }
+</style>
+
+<style>/* grey variant: earlier impacts fade to slate, controls neutral */
+:root { --past: #7d8696; --past-alpha: 0.55; --crater: #4f5768; --fireball: #4f5768; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --past: #8c95a6; --past-alpha: 0.5; --crater: #b4bcc9; --fireball: #b4bcc9; } }
+:root[data-theme="dark"] { --past: #8c95a6; --past-alpha: 0.5; --crater: #b4bcc9; --fireball: #b4bcc9; }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="head-text">
+  <h1>Impact craters through geologic time</h1>
+  <p>The scars that rocks from space have left on Earth over two billion years, from Vredefort in South Africa to the craters of the last 11,700 years. Press play to watch them appear period by period.</p>
+  </div>
+  <div class="speed theme" role="group" aria-label="Colour theme"><div class="seg" data-theme-switch>
+    <button type="button" data-set="auto" aria-pressed="true">Auto</button><button type="button" data-set="light" aria-pressed="false">Light</button><button type="button" data-set="dark" aria-pressed="false">Dark</button>
+  </div></div>
+</header>
+<div class="grid">
+  <section class="panel" id="craters" aria-label="Impact craters through geologic time">
+    <div class="sub">Confirmed impact structures by estimated age. Bubble width is crater diameter.</div>
+    <div class="frame"><span class="now" data-now></span><span class="range" data-range></span></div>
+    <div class="stats" data-stats></div>
+    <div class="map" id="craters-map"></div>
+    <div class="key"><span><i class="new"></i>New this period</span><span><i class="past"></i>Formed earlier</span></div>
+    <div class="tl-title">Craters per period · click a bar to jump</div>
+    <div class="tl" id="craters-tl"></div>
+    <div class="controls">
+      <button type="button" data-play aria-label="Play crater animation">▶ Play</button>
+      <input type="range" min="0" step="1" data-slider aria-label="Geologic period">
+      <div class="speed" role="group" aria-label="Animation speed"><span>Speed</span><div class="seg" data-speed>
+        <button type="button" data-mul="0.25" aria-pressed="false">¼×</button><button type="button" data-mul="0.5" aria-pressed="false">½×</button><button type="button" data-mul="1" aria-pressed="true">1×</button><button type="button" data-mul="2" aria-pressed="false">2×</button><button type="button" data-mul="4" aria-pressed="false">4×</button>
+      </div></div>
+      <button type="button" data-sound aria-pressed="true">🔊 Sound on</button>
+    </div>
+  </section>
+</div>
+<footer>
+  <p><b>Source.</b> <a href="https://en.wikipedia.org/wiki/List_of_impact_structures_on_Earth">Wikipedia, List of impact structures on Earth</a> (CC BY-SA 4.0). 195 of 204 confirmed structures have coordinates and are shown.</p>
+  <p><b>Notes.</b> Crater ages are uncertain. When only a range is known, the crater is placed at the midpoint. When only an upper limit is known (e.g. "less than 60 Ma"), it is placed at that limit, so it may be younger than shown. Some locations are approximate.</p>
+</footer>
+</main>
+<script>
+const DATA = {"craters":[{"name":"Vredefort","country":"South Africa","lat":-27.0,"lon":27.5,"z":160.0,"age":2023.0,"ageText":"2023 \u00b1 4 Ma","how":"stated","f":1,"approx":false},{"name":"Chicxulub","country":"Mexico","lat":21.333,"lon":-89.5,"z":150.0,"age":66.051,"ageText":"66.051 \u00b1 0.031 Ma","how":"stated","f":12,"approx":false},{"name":"Sudbury","country":"Canada","lat":46.6,"lon":-81.183,"z":130.0,"age":1849.0,"ageText":"1849 Ma","how":"stated","f":1,"approx":false},{"name":"Popigai","country":"Russia","lat":71.65,"lon":111.183,"z":100.0,"age":35.7,"ageText":"35.7 \u00b1 0.2 Ma","how":"stated","f":13,"approx":false},{"name":"Manicouagan","country":"Canada","lat":51.383,"lon":-68.7,"z":100.0,"age":215.56,"ageText":"215.56 \u00b1 0.05 Ma","how":"stated","f":10,"approx":false},{"name":"Acraman","country":"Australia","lat":-32.017,"lon":135.45,"z":90.0,"age":580.0,"ageText":"580 Ma","how":"stated","f":3,"approx":false},{"name":"Talundilly","country":"Australia","lat":-27.1167,"lon":142.8333,"z":84.0,"age":125.0,"ageText":"~125 Ma","how":"stated","f":12,"approx":false},{"name":"Morokweng","country":"South Africa","lat":-26.467,"lon":23.533,"z":70.0,"age":146.06,"ageText":"146.06 \u00b1 0.16 Ma","how":"stated","f":11,"approx":false},{"name":"Siljan Ring","country":"Sweden","lat":61.033,"lon":14.867,"z":70.0,"age":380.9,"ageText":"380.9 \u00b1 4.6 Ma","how":"stated","f":7,"approx":false},{"name":"Tookoonooka","country":"Australia","lat":-27.117,"lon":142.833,"z":66.0,"age":122.8,"ageText":"121.8\u2013123.8 Ma","how":"midpoint of range","f":12,"approx":false},{"name":"Kara","country":"Russia","lat":69.1,"lon":64.15,"z":65.0,"age":75.34,"ageText":"75.34 \u00b1 0.66 Ma","how":"stated","f":12,"approx":false},{"name":"Beaverhead","country":"United States","lat":44.25,"lon":-114.0,"z":60.0,"age":600.0,"ageText":"600 Ma","how":"stated","f":3,"approx":false},{"name":"Charlevoix","country":"Canada","lat":47.533,"lon":-70.3,"z":54.0,"age":342.0,"ageText":"342 Ma","how":"stated","f":8,"approx":false},{"name":"Karakul","country":"Tajikistan","lat":39.017,"lon":73.45,"z":52.0,"age":60.0,"ageText":"less than 60 Ma","how":"upper bound (could be younger)","f":13,"approx":false},{"name":"Montagnais","country":"Canada","lat":42.883,"lon":-64.217,"z":45.0,"age":50.5,"ageText":"50.5 Ma","how":"stated","f":13,"approx":false},{"name":"Miralga","country":"Australia","lat":-21.0483,"lon":119.3931,"z":42.5,"age":3024.0,"ageText":"~3024 Ma","how":"stated","f":0,"approx":false},{"name":"Araguainha","country":"Brazil","lat":-16.783,"lon":-52.983,"z":40.0,"age":244.4,"ageText":"244.4 Ma","how":"stated","f":10,"approx":false},{"name":"Chesapeake Bay","country":"United States","lat":37.283,"lon":-76.017,"z":40.0,"age":34.86,"ageText":"34.86 \u00b1 0.23 Ma","how":"stated","f":13,"approx":false},{"name":"Mj\u00f8lnir","country":"Norway","lat":73.8,"lon":29.667,"z":40.0,"age":142.0,"ageText":"142 Ma","how":"stated","f":12,"approx":false},{"name":"Puchezh-Katunki","country":"Russia","lat":56.967,"lon":43.717,"z":40.0,"age":195.9,"ageText":"195.9 \u00b1 1.0 Ma","how":"stated","f":11,"approx":false},{"name":"Saint Martin","country":"Canada","lat":51.783,"lon":-98.533,"z":40.0,"age":227.8,"ageText":"227.8 \u00b1 1.1 Ma","how":"stated","f":10,"approx":false},{"name":"Woodleigh","country":"Australia","lat":-26.05,"lon":114.667,"z":40.0,"age":364.0,"ageText":"364 Ma","how":"stated","f":7,"approx":false},{"name":"Carswell","country":"Canada","lat":58.45,"lon":-109.5,"z":39.0,"age":115.0,"ageText":"115 Ma","how":"stated","f":12,"approx":false},{"name":"Clearwater West","country":"Canada","lat":56.217,"lon":-74.5,"z":36.0,"age":290.0,"ageText":"290 Ma","how":"stated","f":9,"approx":false},{"name":"Manson","country":"United States","lat":42.583,"lon":-94.55,"z":35.0,"age":74.0,"ageText":"74 Ma","how":"stated","f":12,"approx":false},{"name":"Gosses Bluff","country":"Australia","lat":-23.817,"lon":132.3,"z":32.0,"age":274.0,"ageText":"165\u2013383 Ma","how":"midpoint of range","f":9,"approx":false},{"name":"Hiawatha","country":"Denmark","lat":78.833,"lon":-67.3,"z":31.0,"age":57.99,"ageText":"57.99 \u00b1 0.54 Ma","how":"stated","f":13,"approx":false},{"name":"Slate Islands","country":"Canada","lat":48.667,"lon":-87.0,"z":30.0,"age":450.0,"ageText":"450 Ma","how":"stated","f":5,"approx":false},{"name":"Yarrabubba","country":"Australia","lat":-27.167,"lon":118.833,"z":30.0,"age":2229.0,"ageText":"2229 Ma","how":"stated","f":1,"approx":false},{"name":"Keurusselk\u00e4","country":"Finland","lat":62.133,"lon":24.6,"z":30.0,"age":1450.0,"ageText":"1400\u20131500 Ma","how":"midpoint of range","f":2,"approx":false},{"name":"Shoemaker","country":"Australia","lat":-25.867,"lon":120.883,"z":30.0,"age":1630.0,"ageText":"1630? Ma","how":"stated","f":1,"approx":false},{"name":"Mistastin","country":"Canada","lat":55.883,"lon":-63.3,"z":28.0,"age":36.4,"ageText":"36.4 Ma","how":"stated","f":13,"approx":false},{"name":"Clearwater East","country":"Canada","lat":56.067,"lon":-74.1,"z":26.0,"age":465.0,"ageText":"465 Ma","how":"stated","f":5,"approx":false},{"name":"Kamensk","country":"Russia","lat":48.35,"lon":40.5,"z":25.0,"age":49.0,"ageText":"49 Ma","how":"stated","f":13,"approx":false},{"name":"Steen River","country":"Canada","lat":59.5,"lon":-117.633,"z":25.0,"age":91.0,"ageText":"91 Ma","how":"stated","f":12,"approx":false},{"name":"Strangways","country":"Australia","lat":-15.2,"lon":133.583,"z":25.0,"age":646.0,"ageText":"646 Ma","how":"stated","f":3,"approx":false},{"name":"Tunnunik","country":"Canada","lat":72.467,"lon":-113.967,"z":25.0,"age":440.0,"ageText":"430\u2013450 Ma","how":"midpoint of range","f":6,"approx":false},{"name":"Uhackatik","country":"Canada","lat":51.2,"lon":-64.7,"z":25.0,"age":390.0,"ageText":"~390 Ma","how":"stated","f":7,"approx":false},{"name":"Boltysh","country":"Ukraine","lat":48.9,"lon":32.25,"z":24.0,"age":65.17,"ageText":"65.17 Ma","how":"stated","f":13,"approx":false},{"name":"N\u00f6rdlinger Ries","country":"Germany","lat":48.883,"lon":10.567,"z":24.0,"age":14.808,"ageText":"14.808 \u00b1 0.038 Ma","how":"stated","f":14,"approx":false},{"name":"Presqu'\u00eele","country":"Canada","lat":49.717,"lon":-74.8,"z":24.0,"age":500.0,"ageText":"less than 500 Ma","how":"upper bound (could be younger)","f":4,"approx":false},{"name":"Haughton","country":"Canada","lat":75.383,"lon":-89.667,"z":23.0,"age":39.0,"ageText":"39 Ma","how":"stated","f":13,"approx":false},{"name":"Lappaj\u00e4rvi","country":"Finland","lat":63.2,"lon":23.7,"z":23.0,"age":77.85,"ageText":"77.85 \u00b1 0.78 Ma","how":"stated","f":12,"approx":false},{"name":"Rochechouart","country":"France","lat":45.817,"lon":0.783,"z":23.0,"age":206.92,"ageText":"206.92 \u00b1 0.32 Ma","how":"stated","f":10,"approx":false},{"name":"Alhama de Almer\u00eda","country":"Spain","lat":36.967,"lon":-2.533,"z":22.0,"age":8.0,"ageText":"8 Ma","how":"stated","f":14,"approx":false},{"name":"Gweni-Fada","country":"Chad","lat":17.4186,"lon":21.7522,"z":22.0,"age":383.0,"ageText":"less than 383 Ma","how":"upper bound (could be younger)","f":7,"approx":false},{"name":"Amelia Creek","country":"Australia","lat":-20.917,"lon":134.833,"z":20.0,"age":1120.0,"ageText":"600\u20131640 Ma","how":"midpoint of range","f":2,"approx":false},{"name":"Logancha","country":"Russia","lat":65.517,"lon":95.933,"z":20.0,"age":40.0,"ageText":"40 Ma","how":"stated","f":13,"approx":false},{"name":"Neugrund","country":"Estonia","lat":59.3333,"lon":23.6667,"z":20.0,"age":535.0,"ageText":"530\u2013540 Ma","how":"midpoint of range","f":4,"approx":false},{"name":"Obolon'","country":"Ukraine","lat":49.583,"lon":32.917,"z":20.0,"age":169.0,"ageText":"169 Ma","how":"stated","f":11,"approx":false},{"name":"Sierra Madera","country":"United States","lat":30.6,"lon":-102.9167,"z":20.0,"age":113.0,"ageText":"less than 113 Ma","how":"upper bound (could be younger)","f":12,"approx":false},{"name":"Dellen","country":"Sweden","lat":61.85,"lon":16.7,"z":19.0,"age":140.82,"ageText":"140.82 \u00b1 0.51 Ma","how":"stated","f":12,"approx":true},{"name":"Glikson","country":"Australia","lat":-23.9833,"lon":121.5667,"z":19.0,"age":513.0,"ageText":"less than 513 Ma","how":"upper bound (could be younger)","f":4,"approx":false},{"name":"El'gygytgyn","country":"Russia","lat":67.5,"lon":172.0,"z":18.0,"age":3.5,"ageText":"3.5 Ma","how":"stated","f":14,"approx":false},{"name":"Oasis","country":"Libya","lat":24.5744,"lon":24.4103,"z":18.0,"age":120.0,"ageText":"less than 120 Ma","how":"upper bound (could be younger)","f":12,"approx":false},{"name":"Logoisk","country":"Belarus","lat":54.2,"lon":27.8,"z":17.0,"age":30.0,"ageText":"30 \u00b1 0.5 Ma","how":"stated","f":13,"approx":false},{"name":"Lawn Hill","country":"Australia","lat":-18.667,"lon":138.63,"z":16.8,"age":476.0,"ageText":"476 \u00b1 8 Ma","how":"stated","f":5,"approx":false},{"name":"Aorounga Central","country":"Chad","lat":19.1,"lon":19.25,"z":16.0,"age":0.5,"ageText":"Possibly 500 ka","how":"stated","f":15,"approx":false},{"name":"Ames","country":"United States","lat":36.233,"lon":-98.183,"z":16.0,"age":468.0,"ageText":"458\u2013478 Ma","how":"midpoint of range","f":5,"approx":false},{"name":"Suavj\u00e4rvi","country":"Russia","lat":63.1167,"lon":33.3833,"z":16.0,"age":2450.0,"ageText":"2200\u20132700 Ma","how":"midpoint of range","f":1,"approx":true},{"name":"Cleanskin","country":"Australia","lat":-18.167,"lon":137.933,"z":15.0,"age":960.0,"ageText":"520\u20131400 Ma","how":"midpoint of range","f":3,"approx":false},{"name":"Kaluga","country":"Russia","lat":54.5,"lon":36.2,"z":15.0,"age":388.5,"ageText":"383\u2013394 Ma","how":"midpoint of range","f":7,"approx":false},{"name":"Luizi","country":"Dem. Rep. of the Congo","lat":-10.1667,"lon":28,"z":15.0,"age":573.0,"ageText":"less than 573 Ma","how":"upper bound (could be younger)","f":3,"approx":false},{"name":"Presqu'\u00eele","country":"Canada","lat":49.7167,"lon":-74.8,"z":15.0,"age":2729.0,"ageText":"less than 2729 Ma","how":"upper bound (could be younger)","f":0,"approx":false},{"name":"Ternovka","country":"Ukraine","lat":48.1419,"lon":33.5528,"z":15.0,"age":280.0,"ageText":"280 \u00b1 10 Ma","how":"stated","f":9,"approx":false},{"name":"Pantasma","country":"Nicaragua","lat":13.3667,"lon":-85.95,"z":14.0,"age":0.804,"ageText":"804 ka","how":"stated","f":15,"approx":true},{"name":"Zhamanshin","country":"Kazakhstan","lat":48.4,"lon":60.9667,"z":14.0,"age":0.9,"ageText":"900 \u00b1 100 ka","how":"stated","f":15,"approx":false},{"name":"J\u00e4nisj\u00e4rvi","country":"Russia","lat":61.9667,"lon":30.9167,"z":14.0,"age":687.0,"ageText":"687 \u00b1 5 Ma","how":"stated","f":3,"approx":true},{"name":"Serra da Cangalha","country":"Brazil","lat":-8.0833,"lon":-46.8667,"z":13.7,"age":250.0,"ageText":"less than 250 Ma","how":"upper bound (could be younger)","f":10,"approx":false},{"name":"Wells Creek","country":"United States","lat":36.3778,"lon":-87.6583,"z":13.7,"age":211.5,"ageText":"100\u2013323 Ma","how":"midpoint of range","f":10,"approx":false},{"name":"Cerro do Jarau","country":"Brazil","lat":-30.183,"lon":-56.517,"z":13.5,"age":135.0,"ageText":"less than 135 Ma","how":"upper bound (could be younger)","f":12,"approx":false},{"name":"Lockne","country":"Sweden","lat":63,"lon":14.8164,"z":13.5,"age":455.0,"ageText":"~455 Ma","how":"stated","f":5,"approx":false},{"name":"Deep Bay","country":"Canada","lat":56.4,"lon":-102.9833,"z":13.0,"age":98.5,"ageText":"95\u2013102 Ma","how":"midpoint of range","f":12,"approx":false},{"name":"Santa Fe","country":"United States","lat":35.7281,"lon":-105.8642,"z":13.0,"age":775.0,"ageText":"350\u20131200 Ma","how":"midpoint of range","f":3,"approx":false},{"name":"Spider","country":"Australia","lat":-16.7394,"lon":126.0903,"z":13.0,"age":740.0,"ageText":"580\u2013900 Ma","how":"midpoint of range","f":3,"approx":false},{"name":"Nicholson","country":"Canada","lat":62.6667,"lon":-102.6833,"z":12.5,"age":387.0,"ageText":"387 \u00b1 5 Ma","how":"stated","f":7,"approx":false},{"name":"Vargeao Dome","country":"Brazil","lat":-26.8167,"lon":-52.1667,"z":12.4,"age":123.0,"ageText":"123 \u00b1 1.4 Ma","how":"stated","f":12,"approx":false},{"name":"Dhala","country":"India","lat":25.3,"lon":78.1333,"z":11.0,"age":2100.0,"ageText":"1700\u20132500 Ma","how":"midpoint of range","f":1,"approx":false},{"name":"Bosumtwi","country":"Ghana","lat":6.5,"lon":-1.417,"z":10.0,"age":1.1,"ageText":"1.1 Ma","how":"stated","f":15,"approx":false},{"name":"Karla","country":"Russia","lat":54.917,"lon":48.033,"z":10.0,"age":5.0,"ageText":"5 Ma","how":"stated","f":14,"approx":false},{"name":"Avak","country":"United States","lat":71.25,"lon":-156.5,"z":10.0,"age":92.0,"ageText":"90-94 Ma","how":"midpoint of range","f":12,"approx":false},{"name":"Flaxman","country":"Australia","lat":-34.6167,"lon":139.0667,"z":10.0,"age":287.5,"ageText":"34\u2013541 Ma","how":"midpoint of range","f":9,"approx":false},{"name":"Lumparn","country":"Finland","lat":60.15,"lon":20.1,"z":10.0,"age":458.0,"ageText":"less than 458 Ma","how":"upper bound (could be younger)","f":5,"approx":true},{"name":"Paasselk\u00e4","country":"Finland","lat":62.15,"lon":29.4167,"z":10.0,"age":231.0,"ageText":"231.0 \u00b1 2.2 Ma","how":"stated","f":10,"approx":true},{"name":"Ramgarh","country":"India","lat":25.3378,"lon":76.6247,"z":10.0,"age":457.5,"ageText":"165\u2013750 Ma","how":"midpoint of range","f":5,"approx":false},{"name":"Santa Marta","country":"Brazil","lat":-10.1667,"lon":-45.25,"z":10.0,"age":100.0,"ageText":"less than 100 Ma","how":"upper bound (could be younger)","f":12,"approx":false},{"name":"Vista Alegre","country":"Brazil","lat":-25.95,"lon":-52.6833,"z":9.5,"age":122.5,"ageText":"111\u2013134 Ma","how":"midpoint of range","f":12,"approx":false},{"name":"Connolly Basin","country":"Australia","lat":-23.533,"lon":124.75,"z":9.0,"age":29.5,"ageText":"23\u201336 Ma","how":"midpoint of range","f":13,"approx":false},{"name":"Ragozinka","country":"Russia","lat":58.7333,"lon":61.8,"z":9.0,"age":57.5,"ageText":"56\u201359 Ma","how":"midpoint of range","f":13,"approx":false},{"name":"Red Wing","country":"United States","lat":47.6,"lon":-103.55,"z":9.0,"age":208.5,"ageText":"167\u2013250 Ma","how":"midpoint of range","f":10,"approx":false},{"name":"Calvin","country":"United States","lat":41.817,"lon":-85.933,"z":8.5,"age":451.0,"ageText":"444\u2013458 Ma","how":"midpoint of range","f":5,"approx":false},{"name":"Jeokjung-Chogye Basin","country":"South Korea","lat":35.55,"lon":128.267,"z":8.0,"age":0.0465,"ageText":"30\u201363 ka","how":"midpoint of range","f":15,"approx":false},{"name":"Bigach","country":"Kazakhstan","lat":48.567,"lon":82.017,"z":8.0,"age":5.0,"ageText":"5 Ma","how":"stated","f":14,"approx":false},{"name":"Beyenchime-Salaatin","country":"Russia","lat":71,"lon":121.6667,"z":8.0,"age":66.0,"ageText":"Likely less than 66 Ma","how":"upper bound (could be younger)","f":12,"approx":false},{"name":"Couture","country":"Canada","lat":60.117,"lon":-75.3,"z":8.0,"age":429.0,"ageText":"429 \u00b1 25 Ma","how":"stated","f":6,"approx":false},{"name":"Des Plaines","country":"United States","lat":42.05,"lon":-87.8667,"z":8.0,"age":299.0,"ageText":"less than 299 Ma","how":"upper bound (could be younger)","f":8,"approx":false},{"name":"Eagle Butte","country":"Canada","lat":49.7,"lon":-110.5,"z":8.0,"age":65.0,"ageText":"less than 65 Ma","how":"upper bound (could be younger)","f":13,"approx":false},{"name":"La Moinerie","country":"Canada","lat":57.4269,"lon":-66.5942,"z":8.0,"age":453.0,"ageText":"453 \u00b1 5 Ma","how":"stated","f":5,"approx":false},{"name":"Serpent Mound","country":"United States","lat":39.0333,"lon":-83.4,"z":8.0,"age":359.0,"ageText":"less than 359 Ma","how":"upper bound (could be younger)","f":7,"approx":false},{"name":"Matt Wilson","country":"Australia","lat":-15.5011,"lon":131.1786,"z":7.5,"age":1344.0,"ageText":"less than 1344 Ma","how":"upper bound (could be younger)","f":2,"approx":false},{"name":"Vepriai","country":"Lithuania","lat":55.14,"lon":24.59,"z":7.5,"age":160.0,"ageText":"155\u2013165 Ma","how":"midpoint of range","f":11,"approx":false},{"name":"Wanapitei","country":"Canada","lat":46.75,"lon":-80.75,"z":7.5,"age":37.7,"ageText":"37.7 \u00b1 1.2 Ma","how":"stated","f":13,"approx":true},{"name":"Cloud Creek","country":"United States","lat":43.067,"lon":-106.75,"z":7.0,"age":196.5,"ageText":"166\u2013227 Ma","how":"midpoint of range","f":11,"approx":false},{"name":"Crooked Creek","country":"United States","lat":37.8333,"lon":-91.3833,"z":7.0,"age":404.0,"ageText":"323\u2013485 Ma","how":"midpoint of range","f":7,"approx":false},{"name":"Goyder","country":"Australia","lat":-13.476,"lon":135.043,"z":7.0,"age":737.5,"ageText":"150\u20131325 Ma","how":"midpoint of range","f":3,"approx":false},{"name":"Kentland","country":"United States","lat":40.75,"lon":-87.4,"z":7.0,"age":97.0,"ageText":"less than 97 Ma","how":"upper bound (could be younger)","f":12,"approx":false},{"name":"Mien","country":"Sweden","lat":56.4167,"lon":14.8667,"z":7.0,"age":120.0,"ageText":"120 \u00b1 1 Ma","how":"stated","f":12,"approx":true},{"name":"Kelly West","country":"Australia","lat":-19.9333,"lon":133.95,"z":6.6,"age":1070.0,"ageText":"500\u20131640 Ma","how":"midpoint of range","f":2,"approx":false},{"name":"Rock Elm","country":"United States","lat":44.7167,"lon":-92.2333,"z":6.5,"age":471.5,"ageText":"458\u2013485 Ma","how":"midpoint of range","f":5,"approx":false},{"name":"S\u00f6derfj\u00e4rden","country":"Finland","lat":63.005,"lon":21.575,"z":6.5,"age":640.0,"ageText":"640 Ma","how":"stated","f":3,"approx":true},{"name":"Wetumpka","country":"United States","lat":32.5167,"lon":-86.1667,"z":6.25,"age":83.5,"ageText":"~83.5 Ma","how":"stated","f":12,"approx":false},{"name":"Chukcha","country":"Russia","lat":75.633,"lon":98.583,"z":6.0,"age":70.0,"ageText":"less than 70 Ma","how":"upper bound (could be younger)","f":12,"approx":false},{"name":"Decaturville","country":"United States","lat":37.9,"lon":-92.7167,"z":6.0,"age":323.0,"ageText":"less than 323 Ma","how":"upper bound (could be younger)","f":8,"approx":false},{"name":"Foelsche","country":"Australia","lat":-16.67,"lon":136.78,"z":6.0,"age":1008.0,"ageText":"520\u20131496 Ma","how":"midpoint of range","f":2,"approx":false},{"name":"Pilot","country":"Canada","lat":60.2833,"lon":-111,"z":6.0,"age":450.0,"ageText":"450 \u00b1 2 Ma","how":"stated","f":5,"approx":false},{"name":"Tin Bider","country":"Algeria","lat":27.6019,"lon":5.1122,"z":6.0,"age":66.0,"ageText":"less than 66 Ma","how":"upper bound (could be younger)","f":12,"approx":false},{"name":"Maple Creek","country":"Canada","lat":49.8,"lon":-109.1,"z":5.75,"age":72.0,"ageText":"less than 72 Ma","how":"upper bound (could be younger)","f":12,"approx":false},{"name":"Decorah","country":"United States","lat":43.3139,"lon":-91.7722,"z":5.6,"age":465.5,"ageText":"464\u2013467 Ma","how":"midpoint of range","f":5,"approx":false},{"name":"Chiyli","country":"Kazakhstan","lat":49.167,"lon":57.833,"z":5.5,"age":48.5,"ageText":"41\u201356 Ma","how":"midpoint of range","f":13,"approx":false},{"name":"Jabel Waqf as Suwwan","country":"Jordan","lat":31.0472,"lon":36.805,"z":5.5,"age":16.3,"ageText":"2.6\u201330 Ma","how":"midpoint of range","f":14,"approx":false},{"name":"Kursk","country":"Russia","lat":51.7,"lon":36,"z":5.5,"age":261.0,"ageText":"163\u2013359 Ma","how":"midpoint of range","f":9,"approx":false},{"name":"Middlesboro","country":"United States","lat":36.6167,"lon":-83.7333,"z":5.5,"age":299.0,"ageText":"less than 299 Ma","how":"upper bound (could be younger)","f":8,"approx":false},{"name":"Upheaval Dome","country":"United States","lat":38.4369,"lon":-109.9292,"z":5.2,"age":183.0,"ageText":"less than 183 Ma","how":"upper bound (could be younger)","f":11,"approx":false},{"name":"Gardnos","country":"Norway","lat":60.65,"lon":9,"z":5.0,"age":546.0,"ageText":"546 \u00b1 5 Ma","how":"stated","f":3,"approx":false},{"name":"Goat Paddock","country":"Australia","lat":-18.3333,"lon":126.6667,"z":5.0,"age":52.0,"ageText":"48\u201356 Ma","how":"midpoint of range","f":13,"approx":false},{"name":"Mizarai","country":"Lithuania","lat":54.0167,"lon":23.9,"z":5.0,"age":500.0,"ageText":"480\u2013520 Ma","how":"midpoint of range","f":4,"approx":false},{"name":"Ora Banda","country":"Australia","lat":-30.38,"lon":121.06,"z":5.0,"age":100.0,"ageText":"100 Ma","how":"stated","f":12,"approx":true},{"name":"S\u00e4\u00e4ksj\u00e4rvi","country":"Finland","lat":61.4,"lon":22.4,"z":5.0,"age":602.0,"ageText":"602 \u00b1 17 Ma","how":"stated","f":3,"approx":true},{"name":"Dobele","country":"Latvia","lat":56.5833,"lon":23.25,"z":4.5,"age":305.5,"ageText":"252\u2013359 Ma","how":"midpoint of range","f":8,"approx":false},{"name":"Ilyinets","country":"Ukraine","lat":49.1167,"lon":29.1,"z":4.5,"age":445.0,"ageText":"445 \u00b1 10 Ma","how":"stated","f":5,"approx":false},{"name":"Glasford","country":"United States","lat":40.6,"lon":-89.7833,"z":4.0,"age":455.0,"ageText":"453\u2013457 Ma","how":"midpoint of range","f":5,"approx":false},{"name":"Gow","country":"Canada","lat":56.4514,"lon":-104.4681,"z":4.0,"age":196.8,"ageText":"196.8 \u00b1 9.9 Ma","how":"stated","f":11,"approx":false},{"name":"Ile Rouleau","country":"Canada","lat":50.6833,"lon":-73.8833,"z":4.0,"age":300.0,"ageText":"less than 300 Ma","how":"upper bound (could be younger)","f":8,"approx":false},{"name":"Kardla","country":"Estonia","lat":59.0167,"lon":22.7667,"z":4.0,"age":455.0,"ageText":"~455 Ma","how":"stated","f":5,"approx":false},{"name":"Mount Toondina","country":"Australia","lat":-27.9444,"lon":135.3583,"z":4.0,"age":125.0,"ageText":"less than 125 Ma","how":"upper bound (could be younger)","f":12,"approx":false},{"name":"Riach\u00e3o","country":"Brazil","lat":-7.7167,"lon":-46.65,"z":4.0,"age":299.0,"ageText":"less than 299 Ma","how":"upper bound (could be younger)","f":8,"approx":false},{"name":"Elbow","country":"Canada","lat":50.9833,"lon":-106.7167,"z":3.8,"age":297.0,"ageText":"201\u2013393 Ma","how":"midpoint of range","f":9,"approx":false},{"name":"Flynn Creek","country":"United States","lat":36.2833,"lon":-85.6667,"z":3.8,"age":382.0,"ageText":"~382 Ma","how":"stated","f":7,"approx":false},{"name":"Steinheim","country":"Germany","lat":48.6867,"lon":10.065,"z":3.8,"age":14.8,"ageText":"~14.8 Ma","how":"stated","f":14,"approx":false},{"name":"Suvasvesi South","country":"Finland","lat":62.65,"lon":28.2,"z":3.8,"age":1295.0,"ageText":"710\u20131880 Ma","how":"midpoint of range","f":2,"approx":true},{"name":"Tsenkher","country":"Mongolia","lat":47.4419,"lon":101.7708,"z":3.7,"age":4.9,"ageText":"4.9 \u00b1 0.9 Ma","how":"stated","f":14,"approx":false},{"name":"Colonia","country":"Brazil","lat":-23.867,"lon":-46.7,"z":3.6,"age":20.5,"ageText":"5\u201336 Ma","how":"midpoint of range","f":14,"approx":false},{"name":"West Hawk","country":"Canada","lat":49.765,"lon":-95.1878,"z":3.6,"age":351.0,"ageText":"351 \u00b1 20 Ma","how":"stated","f":8,"approx":true},{"name":"Suvasvesi North","country":"Finland","lat":62.65,"lon":28.2,"z":3.5,"age":85.0,"ageText":"~85 Ma","how":"stated","f":12,"approx":true},{"name":"Zeleny Gai","country":"Ukraine","lat":48.0667,"lon":32.75,"z":3.5,"age":80.0,"ageText":"60\u2013100 Ma","how":"midpoint of range","f":12,"approx":false},{"name":"New Quebec/Pingualuit","country":"Canada","lat":61.2775,"lon":-73.66,"z":3.4,"age":1.4,"ageText":"1.4 \u00b1 0.1 Ma","how":"stated","f":15,"approx":false},{"name":"Brent","country":"Canada","lat":46.067,"lon":-78.467,"z":3.4,"age":453.2,"ageText":"453.2 \u00b1 6.0 Ma","how":"stated","f":5,"approx":false},{"name":"Kgagodi","country":"Botswana","lat":-22.4833,"lon":27.5833,"z":3.4,"age":180.0,"ageText":"less than 180 Ma","how":"upper bound (could be younger)","f":11,"approx":false},{"name":"BP","country":"Libya","lat":25.317,"lon":24.3,"z":3.2,"age":120.0,"ageText":"less than 120 Ma","how":"upper bound (could be younger)","f":12,"approx":false},{"name":"Newporte","country":"United States","lat":48.9667,"lon":-101.9667,"z":3.2,"age":490.0,"ageText":"480\u2013500 Ma","how":"midpoint of range","f":4,"approx":false},{"name":"Zapadnaya","country":"Ukraine","lat":49.7333,"lon":29,"z":3.2,"age":165.0,"ageText":"165 \u00b1 5 Ma","how":"stated","f":11,"approx":false},{"name":"Tvaren","country":"Sweden","lat":58.7667,"lon":17.4167,"z":3.1,"age":457.0,"ageText":"456\u2013458 Ma","how":"midpoint of range","f":5,"approx":true},{"name":"Agoudal","country":"Morocco","lat":31.983,"lon":-5.5,"z":3.0,"age":0.105,"ageText":"105 ka","how":"stated","f":15,"approx":false},{"name":"Granby","country":"Sweden","lat":58.4167,"lon":14.9333,"z":3.0,"age":473.0,"ageText":"478\u2013468 Ma","how":"midpoint of range","f":5,"approx":false},{"name":"Iso-Naakkima","country":"Finland","lat":62.1833,"lon":27.15,"z":3.0,"age":1050.0,"ageText":"900\u20131200 Ma","how":"midpoint of range","f":2,"approx":true},{"name":"Ouarkziz","country":"Algeria","lat":29.0117,"lon":-7.5522,"z":3.0,"age":205.0,"ageText":"65\u2013345 Ma","how":"midpoint of range","f":10,"approx":false},{"name":"Shunak","country":"Kazakhstan","lat":47.2083,"lon":72.7597,"z":2.8,"age":12.0,"ageText":"7\u201317 Ma","how":"midpoint of range","f":14,"approx":false},{"name":"Ritland","country":"Norway","lat":59.2466,"lon":6.4215,"z":2.7,"age":520.5,"ageText":"500\u2013541 Ma","how":"midpoint of range","f":4,"approx":false},{"name":"Rotmistrovka","country":"Ukraine","lat":49.1472,"lon":31.7083,"z":2.7,"age":119.5,"ageText":"94\u2013145 Ma","how":"midpoint of range","f":12,"approx":false},{"name":"Summasj\u00e4rvi","country":"Finland","lat":62.65,"lon":25.4,"z":2.6,"age":1880.0,"ageText":"less than 1880 Ma","how":"upper bound (could be younger)","f":1,"approx":true},{"name":"Mishina Gora","country":"Russia","lat":58.7167,"lon":28.05,"z":2.5,"age":360.0,"ageText":"less than 360 Ma","how":"upper bound (could be younger)","f":7,"approx":false},{"name":"Roter Kamm","country":"Namibia","lat":-27.7653,"lon":16.2892,"z":2.4,"age":3.8,"ageText":"3.8 \u00b1 0.3 Ma","how":"stated","f":14,"approx":false},{"name":"Viewfield","country":"Canada","lat":49.5833,"lon":-103.0667,"z":2.4,"age":190.0,"ageText":"170\u2013210 Ma","how":"midpoint of range","f":11,"approx":false},{"name":"Holleford","country":"Canada","lat":44.4578,"lon":-76.6333,"z":2.35,"age":550.0,"ageText":"450\u2013650 Ma","how":"midpoint of range","f":3,"approx":false},{"name":"Karikkoselk\u00e4","country":"Finland","lat":62.2167,"lon":25.25,"z":2.25,"age":245.0,"ageText":"230\u2013260 Ma","how":"midpoint of range","f":10,"approx":true},{"name":"Saarij\u00e4rvi","country":"Finland","lat":65.2833,"lon":28.3833,"z":2.0,"age":600.0,"ageText":"less than 600 Ma","how":"upper bound (could be younger)","f":3,"approx":false},{"name":"Tenoumer","country":"Mauritania","lat":22.9172,"lon":-10.4078,"z":1.9,"age":1.6,"ageText":"1.6 \u00b1 0.1 Ma","how":"stated","f":15,"approx":false},{"name":"Yilan","country":"China","lat":46.3844,"lon":129.3275,"z":1.85,"age":0.049,"ageText":"49 ka","how":"stated","f":15,"approx":false},{"name":"Xiuyan","country":"China","lat":40.3617,"lon":123.4631,"z":1.8,"age":0.05,"ageText":"50 ka","how":"stated","f":15,"approx":false},{"name":"Lonar","country":"India","lat":19.9769,"lon":76.5089,"z":1.8,"age":0.576,"ageText":"576 \u00b1 47 ka","how":"stated","f":15,"approx":false},{"name":"Luna","country":"India","lat":23.7047,"lon":69.2603,"z":1.65,"age":0.0069,"ageText":"less than 6.9 ka","how":"upper bound (could be younger)","f":16,"approx":false},{"name":"Talemzane","country":"Algeria","lat":33.3153,"lon":4.0344,"z":1.6,"age":3.0,"ageText":"< 3 Ma","how":"upper bound (could be younger)","f":14,"approx":false},{"name":"Liverpool","country":"Australia","lat":-12.3958,"lon":134.0472,"z":1.6,"age":1205.5,"ageText":"541\u20131870 Ma","how":"midpoint of range","f":2,"approx":false},{"name":"Tabun-Khara-Obo","country":"Mongolia","lat":44.1333,"lon":109.65,"z":1.3,"age":150.0,"ageText":"130\u2013170 Ma","how":"midpoint of range","f":11,"approx":false},{"name":"Meteor/Barringer","country":"United States","lat":35.0275,"lon":-111.0228,"z":1.2,"age":0.049,"ageText":"49 ka","how":"stated","f":15,"approx":false},{"name":"Hummeln","country":"Sweden","lat":57.3667,"lon":16.25,"z":1.2,"age":465.0,"ageText":"~465 Ma","how":"stated","f":5,"approx":false},{"name":"Kamenetsk","country":"Ukraine","lat":48.35,"lon":40.5,"z":1.2,"age":1055.815,"ageText":"11.63\u20132100 Ma","how":"midpoint of range","f":2,"approx":false},{"name":"Tswaing","country":"South Africa","lat":-25.4089,"lon":28.0828,"z":1.1,"age":0.22,"ageText":"220 ka","how":"stated","f":15,"approx":false},{"name":"Jinlin","country":"China","lat":23.3,"lon":111.817,"z":0.9,"age":0.01,"ageText":"< 10 ka","how":"upper bound (could be younger)","f":16,"approx":false},{"name":"Wolfe Creek","country":"Australia","lat":-19.167,"lon":127.8,"z":0.9,"age":0.12,"ageText":"< 120 ka","how":"upper bound (could be younger)","f":15,"approx":false},{"name":"Malingen","country":"Sweden","lat":63,"lon":14.8164,"z":0.7,"age":455.0,"ageText":"~455 Ma","how":"stated","f":5,"approx":false},{"name":"Kalkkop","country":"South Africa","lat":-32.7081,"lon":24.4322,"z":0.64,"age":0.25,"ageText":"~250 ka","how":"stated","f":15,"approx":false},{"name":"Monturaqui","country":"Chile","lat":-23.933,"lon":-68.267,"z":0.455,"age":0.64,"ageText":"640 \u00b1 140 ka","how":"stated","f":15,"approx":false},{"name":"Amguid","country":"Algeria","lat":26.0878,"lon":4.3953,"z":0.45,"age":0.055,"ageText":"10\u2013100 ka","how":"midpoint of range","f":15,"approx":false},{"name":"Aouelloul","country":"Mauritania","lat":20.2411,"lon":-12.675,"z":0.39,"age":3.1,"ageText":"3.1 \u00b1 0.3 Ma","how":"stated","f":14,"approx":false},{"name":"Macha","country":"Russia","lat":60.1,"lon":117.583,"z":0.3,"age":0.0073,"ageText":"7.3 ka","how":"stated","f":16,"approx":false},{"name":"Hickman","country":"Australia","lat":-23.0371,"lon":119.6831,"z":0.26,"age":0.055,"ageText":"10\u2013100 ka","how":"midpoint of range","f":15,"approx":false},{"name":"Henbury","country":"Australia","lat":-24.567,"lon":133.133,"z":0.2,"age":0.0047,"ageText":"4.7 ka","how":"stated","f":16,"approx":false},{"name":"Boxhole","country":"Australia","lat":-22.617,"lon":135.2,"z":0.2,"age":0.0054,"ageText":"5.4 ka","how":"stated","f":16,"approx":false},{"name":"Wabar","country":"Saudi Arabia","lat":21.5,"lon":50.467,"z":0.1,"age":0.0002,"ageText":"0.2 ka","how":"stated","f":16,"approx":false},{"name":"Kaali","country":"Estonia","lat":58.4,"lon":22.667,"z":0.1,"age":0.0035,"ageText":"3.5 ka","how":"stated","f":16,"approx":false},{"name":"Campo del Cielo","country":"Argentina","lat":-27.633,"lon":-61.7,"z":0.1,"age":0.0045,"ageText":"4.5 ka","how":"stated","f":16,"approx":false},{"name":"Morasko","country":"Poland","lat":52.483,"lon":16.9,"z":0.1,"age":0.005,"ageText":"5.0 ka","how":"stated","f":16,"approx":false},{"name":"Whitecourt","country":"Canada","lat":54.0,"lon":-115.6,"z":0.04,"age":0.0011,"ageText":"1.1 ka","how":"stated","f":16,"approx":false},{"name":"Dalgaranga","country":"Australia","lat":-27.635,"lon":117.2889,"z":0.024,"age":0.003,"ageText":"less than 3? ka","how":"upper bound (could be younger)","f":16,"approx":false}],"craterFrames":[{"label":"Archean","range":"more than 2,500 million years ago"},{"label":"Paleoproterozoic","range":"2,500 to 1,600 million years ago"},{"label":"Mesoproterozoic","range":"1,600 to 1,000 million years ago"},{"label":"Neoproterozoic","range":"1,000 to 538.8 million years ago"},{"label":"Cambrian","range":"538.8 to 485.4 million years ago"},{"label":"Ordovician","range":"485.4 to 443.8 million years ago"},{"label":"Silurian","range":"443.8 to 419.2 million years ago"},{"label":"Devonian","range":"419.2 to 358.9 million years ago"},{"label":"Carboniferous","range":"358.9 to 298.9 million years ago"},{"label":"Permian","range":"298.9 to 251.9 million years ago"},{"label":"Triassic","range":"251.9 to 201.4 million years ago"},{"label":"Jurassic","range":"201.4 to 145 million years ago"},{"label":"Cretaceous","range":"145 to 66 million years ago"},{"label":"Paleogene","range":"66 to 23.03 million years ago"},{"label":"Neogene","range":"23.03 to 2.58 million years ago"},{"label":"Pleistocene","range":"2.58 million to 11.7 thousand years ago"},{"label":"Holocene","range":"last 11,700 years"}]};
+const TOPO_URL = 'https://cdn.jsdelivr.net/npm/@highcharts/map-collection@2.3.3/custom/world.topo.json';
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const pastA = () => parseFloat(css('--past-alpha')) || 0.28;
+const fmt = (n, d = 0) => n.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
+
+function hexA(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+}
+
+// Prepare the points once.
+const craterPts = (DATA.craters || []).map(c => ({
+  ...c,
+  howNote: c.how === 'stated' ? '' : `Placed at ${fmt(c.age, c.age < 1 ? 4 : 0)} Ma (${c.how})`,
+  where: c.approx ? ' (approximate location)' : ''
+}));
+const fireballPts = (DATA.fireballs || []).map(f => ({
+  ...f,
+  f: f.y - DATA.years[0],
+  zText: f.z < 1 ? fmt(f.z, 2) : fmt(f.z, 1),
+  extra: [f.alt != null ? `Altitude ${fmt(f.alt, 1)} km` : '', f.vel != null ? `Velocity ${fmt(f.vel, 1)} km/s` : ''].filter(Boolean).join(' · ')
+}));
+
+// Order impacts within each frame (fireballs by date, craters oldest first) so they go off one after another.
+function stagger(pts, cmp) {
+  const byFrame = {};
+  pts.forEach(pt => (byFrame[pt.f] = byFrame[pt.f] || []).push(pt));
+  Object.values(byFrame).forEach(a => { a.sort(cmp); a.forEach((pt, i) => { pt.t = a.length > 1 ? i / (a.length - 1) : 0; }); });
+}
+stagger(craterPts, (a, b) => b.age - a.age);
+stagger(fireballPts, (a, b) => a.date.localeCompare(b.date));
+
+const PANELS = [
+  {
+    id: 'craters', color: '--crater', newColor: '--new', speed: 1600,
+    frames: (DATA.craterFrames || []).map(f => ({ label: f.label, range: f.range })),
+    points: craterPts,
+    bubble: { sizeBy: 'width', minSize: 4, maxSize: 34, zMin: 0, zMax: 160 },
+    tooltip: '<b>{point.name}</b>, {point.country}{point.where}<br>Diameter: {point.z} km<br>Age: {point.ageText}<br><span style="opacity:.75">{point.howNote}</span>',
+    timeline: frames => frames.map((f, i) => ({ y: craterPts.filter(p => p.f === i).length, name: f.label })),
+    tlTitle: 'Craters per period',
+    tlTooltip: '<b>{point.name}</b>: {point.y} craters',
+    stats(i) {
+      const upto = craterPts.filter(p => p.f <= i), now = craterPts.filter(p => p.f === i);
+      const big = now.reduce((a, b) => (!a || b.z > a.z ? b : a), null);
+      return `<span>Craters so far <b>${upto.length}</b></span><span>This period <b>${now.length}</b></span>` +
+        (big ? `<span>Largest this period <b>${big.name}, ${fmt(big.z, 1)} km</b></span>` : '');
+    }
+  },
+  {
+    id: 'fireballs', color: '--fireball', newColor: '--new', speed: 450,
+    frames: (DATA.years || []).map(y => ({ label: String(y), range: '' })),
+    points: fireballPts,
+    bubble: { sizeBy: 'area', minSize: 4, maxSize: 46, zMin: 0, zMax: 441 },
+    tooltip: '<b>{point.date} UTC</b><br>Impact energy: {point.zText} kt TNT<br><span style="opacity:.75">{point.extra}</span>',
+    timeline: frames => frames.map((f, i) => {
+      const pts = fireballPts.filter(p => p.f === i);
+      return { y: Math.round(pts.reduce((s, p) => s + p.z, 0) * 10) / 10, n: pts.length, name: f.label };
+    }),
+    tlTitle: 'Total impact energy per year (kt)',
+    tlTooltip: '<b>{point.name}</b>: {point.y} kt from {point.n} fireballs',
+    stats(i) {
+      const upto = fireballPts.filter(p => p.f <= i), now = fireballPts.filter(p => p.f === i);
+      const big = now.reduce((a, b) => (!a || b.z > a.z ? b : a), null);
+      const tot = upto.reduce((s, p) => s + p.z, 0);
+      return `<span>Fireballs so far <b>${fmt(upto.length)}</b></span><span>Energy so far <b>${fmt(tot)} kt</b></span><span>This year <b>${now.length}</b></span>` +
+        (big ? `<span>Biggest this year <b>${big.zText} kt</b> (${big.date.slice(0, 10)})</span>` : '');
+    }
+  }
+];
+
+// ---------- Sound: a small synthesized orchestra (Web Audio, no audio files) ----------
+// Strings pad on Dm - Bb - F - C, harp/piano notes for impacts (always chord tones),
+// bass note + timpani for big impacts. Loudness follows impact size.
+const Sound = (() => {
+  let ctx, master, verb, enabled = true;
+  let pad = null, chordIdx = 0, chordTimer = null;
+  try { enabled = localStorage.getItem('meteor-sound') !== 'off'; } catch (e) {}
+  const CHORDS = [   // MIDI notes: bass + pad voicing
+    { bass: 38, pad: [50, 53, 57, 62] },   // D minor
+    { bass: 34, pad: [50, 53, 58, 62] },   // B-flat major
+    { bass: 41, pad: [53, 57, 60, 65] },   // F major
+    { bass: 36, pad: [52, 55, 60, 64] }    // C major
+  ];
+  const BAR = 4;   // seconds per chord
+  const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+
+  function init() {
+    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return true; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    ctx = new AC();
+    const limiter = ctx.createDynamicsCompressor();   // peak limiter only, keeps small/big contrast
+    limiter.threshold.value = -6; limiter.ratio.value = 12; limiter.attack.value = 0.003; limiter.release.value = 0.25;
+    master = ctx.createGain(); master.gain.value = enabled ? 0.9 : 0;
+    master.connect(limiter); limiter.connect(ctx.destination);
+    // Concert-hall style reverb: 3 s decaying noise impulse, slightly darker in the tail
+    verb = ctx.createConvolver();
+    const len = Math.floor(ctx.sampleRate * 3.2), ir = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = ir.getChannelData(c); let lp = 0;
+      for (let i = 0; i < len; i++) { lp = lp * 0.6 + (Math.random() * 2 - 1) * 0.4; d[i] = lp * Math.pow(1 - i / len, 3); }
+    }
+    verb.buffer = ir;
+    const wet = ctx.createGain(); wet.gain.value = 0.55; verb.connect(wet); wet.connect(master);
+    return true;
+  }
+  function bus(pan, dry = 1) {
+    const node = ctx.createStereoPanner ? ctx.createStereoPanner() : ctx.createGain();
+    if (node.pan) node.pan.value = Math.max(-0.8, Math.min(0.8, pan));
+    const d = ctx.createGain(); d.gain.value = dry;
+    node.connect(d); d.connect(master); node.connect(verb);
+    return node;
+  }
+
+  // ---- strings pad ----
+  function padChord(chord, t) {
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.05, t + 1.6);   // slow bowed swell
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1100; lp.Q.value = 0.7;
+    const vib = ctx.createOscillator(), vibG = ctx.createGain();
+    vib.frequency.value = 5; vibG.gain.value = 3;   // vibrato in cents
+    vib.connect(vibG);
+    const nodes = [vib];
+    [chord.bass + 12, ...chord.pad].forEach((m, i) => {
+      [-7, 7].forEach(cents => {
+        const o = ctx.createOscillator(), og = ctx.createGain();
+        o.type = 'sawtooth'; o.frequency.value = hz(m); o.detune.value = cents;
+        vibG.connect(o.detune);
+        og.gain.value = i === 0 ? 0.5 : 0.32;
+        o.connect(og); og.connect(lp); o.start(t); nodes.push(o);
+      });
+    });
+    lp.connect(g); g.connect(bus(0, 0.7));
+    vib.start(t);
+    return { g, nodes };
+  }
+  function releasePad(p, t) {
+    if (!p) return;
+    p.g.gain.cancelScheduledValues(t);
+    p.g.gain.setTargetAtTime(0.0001, t, 0.8);
+    p.nodes.forEach(n => { try { n.stop(t + 5); } catch (e) {} });
+  }
+  function nextChord() {
+    const t = ctx.currentTime + 0.05;
+    const old = pad;
+    pad = padChord(CHORDS[chordIdx], t);
+    releasePad(old, t + 0.4);   // overlap for a legato change
+  }
+  function startPad() {
+    if (chordTimer || !ctx) return;
+    nextChord();
+    chordTimer = setInterval(() => { chordIdx = (chordIdx + 1) % CHORDS.length; nextChord(); }, BAR * 1000);
+  }
+  function stopPad() {
+    clearInterval(chordTimer); chordTimer = null;
+    if (ctx) releasePad(pad, ctx.currentTime);
+    pad = null;
+  }
+
+  // ---- harp / piano note: decaying harmonic partials ----
+  function pluck(t, freq, amp, decay, pan) {
+    const out = bus(pan), lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = Math.min(9000, freq * 6); lp.connect(out);
+    [[1, 1], [2, 0.45], [3, 0.2], [4.02, 0.1], [5.03, 0.05]].forEach(([k, a], j) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = freq * k;
+      const d = decay / Math.pow(k, 0.6);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0002, amp * a), t + 0.004 + j * 0.001);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.connect(g); g.connect(lp); o.start(t); o.stop(t + d + 0.05);
+    });
+  }
+  // ---- timpani: pitched sine with a soft mallet thump ----
+  function timpani(t, freq, amp, pan) {
+    const out = bus(pan, 0.9);
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq * 1.04, t); o.frequency.exponentialRampToValueAtTime(freq, t + 0.12);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(amp, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.8);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t + 3);
+    const o2 = ctx.createOscillator(), g2 = ctx.createGain();   // overtone for body
+    o2.type = 'sine'; o2.frequency.value = freq * 1.5;
+    g2.gain.setValueAtTime(0.0001, t); g2.gain.exponentialRampToValueAtTime(amp * 0.35, t + 0.01); g2.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
+    o2.connect(g2); g2.connect(out); o2.start(t); o2.stop(t + 1.3);
+  }
+
+  // One impact. size 0..1 = loudness position on a DB_RANGE scale; pitch 0..1 picks a chord tone.
+  function impact(when, size, pan, pitch, full) {
+    const t = ctx.currentTime + 0.03 + when;
+    const gain = Math.pow(10, (size - 1) * DB_RANGE / 20);
+    const chord = CHORDS[chordIdx];
+    // Melody notes: the chord's pitch classes over two octaves (MIDI 62..86)
+    const pcs = [...new Set(chord.pad.map(m => m % 12))];
+    const pool = [];
+    for (let m = 62; m <= 86; m++) if (pcs.includes(m % 12)) pool.push(m);
+    const m = pool[Math.max(0, Math.min(pool.length - 1, Math.floor((pitch || 0) * pool.length)))];
+    // Bigger impacts sound an octave lower and ring longer
+    const note = size > 0.6 ? m - 12 : m;
+    pluck(t, hz(note), 0.32 * gain, 1.2 + 2.8 * size, pan);
+    if (!full) return;
+    if (size > 0.45) pluck(t, hz(chord.bass + 12), 0.4 * gain, 2.5 + 2 * size, pan * 0.5);   // bass support
+    if (size > 0.7) {   // timpani roll for the largest
+      const n = size > 0.9 ? 4 : 2;
+      for (let i = 0; i < n; i++) timpani(t + i * 0.09, hz(chord.bass), (0.55 - i * 0.08) * gain, pan * 0.3);
+    }
+  }
+
+  return {
+    get enabled() { return enabled; },
+    get live() { return !!ctx && enabled && ctx.state === 'running'; },
+    start() { if (enabled && init()) startPad(); },
+    stop() { stopPad(); },
+    set(on, playing) {
+      enabled = on;
+      try { localStorage.setItem('meteor-sound', on ? 'on' : 'off'); } catch (e) {}
+      if (on) { init(); master.gain.setTargetAtTime(0.9, ctx.currentTime, 0.05); if (playing) startPad(); }
+      else if (ctx) { master.gain.setTargetAtTime(0, ctx.currentTime, 0.05); stopPad(); }
+    },
+    // events: [{ when (s), size, pan, pitch }]; the 24 loudest get bass/timpani support
+    impacts(kind, events) {
+      if (!this.live) return;
+      const big = new Set(events.slice().sort((a, b) => b.size - a.size).slice(0, 24));
+      events.forEach(e => impact(e.when, e.size, e.pan, e.pitch, big.has(e)));
+    }
+  };
+})();
+const LOG = Math.log10;
+// Loudness relative to the biggest impact, in dB, mapped to 0..1 over DB_RANGE.
+// Fireballs: 10 dB per 10x energy (sound power ~ energy). Craters: 15 dB per 10x diameter.
+const DB_RANGE = 45;
+const toSize = db => Math.max(0, Math.min(1, 1 + db / DB_RANGE));
+const sizeOf = {
+  fireballs: z => toSize(10 * LOG(Math.max(z, 0.01) / 441)),
+  craters: z => toSize(15 * LOG(Math.max(z, 0.01) / 160))
+};
+
+PANELS.splice(0, PANELS.length, ...PANELS.filter(p => p.id === "craters"));
+let topo;
+const state = {};   // per-panel { frame, timer, map, tl }
+
+function themeOptions() {
+  return {
+    chart: { backgroundColor: 'transparent', style: { fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif' } },
+    title: { text: undefined }, credits: { enabled: false }, legend: { enabled: false },
+    tooltip: { backgroundColor: css('--surface'), borderColor: css('--axis'), borderRadius: 8, style: { color: css('--ink'), fontSize: '12px' }, shadow: false }
+  };
+}
+
+function build(p) {
+  const el = document.getElementById(p.id);
+  const s = state[p.id] || (state[p.id] = { frame: 0, timer: null });
+  const fresh = css(p.newColor || p.color);
+  const accent = css(p.color), surface = css('--surface');
+  if (s.map) s.map.destroy();
+  if (s.tl) s.tl.destroy();
+  const base = themeOptions();
+
+  const bubble = {
+    type: 'mapbubble', ...p.bubble, animation: false, colorAxis: false,
+    tooltip: { headerFormat: '', pointFormat: p.tooltip },
+    states: { inactive: { enabled: false } }
+  };
+  s.map = Highcharts.mapChart(`${p.id}-map`, Highcharts.merge(base, {
+    chart: { map: topo, spacing: [4, 0, 4, 0] },
+    mapView: { projection: { name: 'EqualEarth' } },
+    mapNavigation: { enabled: true, enableMouseWheelZoom: false, buttonOptions: { verticalAlign: 'bottom', theme: { fill: surface, stroke: css('--axis'), style: { color: css('--ink') } } } },
+    accessibility: { description: `${p.id === 'craters' ? 'Impact craters' : 'Fireballs'} on a world map, shown up to the selected ${p.id === 'craters' ? 'geologic period' : 'year'}.` },
+    series: [
+      { type: 'map', name: 'Land', nullColor: css('--land'), borderColor: css('--land-edge'), borderWidth: 0.5, enableMouseTracking: false, accessibility: { enabled: false } },
+      { ...bubble, id: 'past', name: 'Earlier', color: hexA(css('--past'), pastA()), marker: { lineWidth: 0, fillOpacity: 1 }, data: [] },
+      { ...bubble, id: 'now', className: 'impact-now', name: p.id === 'craters' ? 'New this period' : 'New this year', color: fresh, marker: { lineWidth: 1, lineColor: surface, fillOpacity: 0.9 }, data: [] }
+    ]
+  }));
+
+  s.tl = Highcharts.chart(`${p.id}-tl`, Highcharts.merge(base, {
+    chart: { type: 'column', spacing: [8, 0, 0, 0] },
+    xAxis: { type: 'category', lineColor: css('--axis'), tickLength: 0, labels: { style: { color: css('--muted'), fontSize: '10px' }, autoRotation: [-45] } },
+    yAxis: { title: { text: undefined }, gridLineColor: css('--grid'), labels: { style: { color: css('--muted'), fontSize: '10px' } }, tickAmount: 3 },
+    tooltip: { headerFormat: '', pointFormat: p.tlTooltip },
+    plotOptions: { column: { borderRadius: 3, borderWidth: 0, pointPadding: 0.06, groupPadding: 0.04, cursor: 'pointer', animation: false, states: { inactive: { enabled: false } },
+      point: { events: { click() { stop(p); go(p, this.index); } } } } },
+    series: [{ name: p.tlTitle, data: p.timeline(p.frames) }]
+  }));
+
+  s.cooled = false;
+  const slider = el.querySelector('[data-slider]');
+  slider.max = p.frames.length - 1;
+  go(p, s.frame);
+}
+
+function go(p, i) {
+  const s = state[p.id], el = document.getElementById(p.id);
+  s.frame = i;
+  const accent = css(p.color), fresh = css(p.newColor || p.color);
+  clearTimeout(s.coolTimer); clearTimeout(s.coolStep);
+  const nowSeries = s.map.get('now');
+  if (s.cooled) {   // last frame's impacts faded to blue; new ones start red again
+    nowSeries.update({ color: fresh, marker: { lineWidth: 1, fillOpacity: 0.9 } }, false);
+    s.cooled = false;
+  }
+  s.map.get('past').setData(p.points.filter(pt => pt.f < i).map(pt => ({ ...pt })), false, false, false);
+  nowSeries.setData(p.points.filter(pt => pt.f === i).map(pt => ({ ...pt })), false, false, false);
+  s.map.redraw(false);
+  // Spread the impacts over most of the frame while playing; a fixed window when scrubbing.
+  const spread = Math.min(900, 0.7 * (s.timer ? p.speed / (s.mul || 1) : 1300));
+  if (p.newColor) impactFx(p, spread);
+  s.tl.series[0].points.forEach((pt, j) => pt.update({ color: j === i ? fresh : j < i ? hexA(css('--past'), Math.min(1, pastA() + 0.17)) : css('--grid') }, false, false));
+  s.tl.redraw(false);
+  const f = p.frames[i];
+  el.querySelector('[data-now]').textContent = f.label;
+  el.querySelector('[data-range]').textContent = f.range;
+  el.querySelector('[data-stats]').innerHTML = p.stats(i);
+  el.querySelector('[data-slider]').value = i;
+  if (p.newColor) s.coolTimer = setTimeout(() => cool(p), spread + COOL_DELAY - 200);
+}
+
+// After COOL_DELAY ms, fade the newest impacts from red to the "earlier" blue.
+const COOL_DELAY = 1000, COOL_FADE = 500;
+const rgbOf = hex => { const n = parseInt(hex.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function impactFx(p, spread) {
+  const s = state[p.id];
+  s.map.container.classList.add('hot');
+  Sound.impacts(p.id, s.map.get('now').points.map(pt => ({
+    when: ((pt.options.t || 0) * spread) / 1000,
+    size: sizeOf[p.id](pt.options.z),
+    pan: (pt.options.lon || 0) / 180,
+    pitch: Math.max(0, Math.min(1, ((pt.options.lat || 0) + 70) / 150))
+  })));
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  s.map.get('now').points.forEach(pt => {
+    const g = pt.graphic && pt.graphic.element;
+    if (!g || !g.parentNode) return;
+    const b = g.getBBox(), cx = b.x + b.width / 2, cy = b.y + b.height / 2, r = Math.max(b.width / 2, 4);
+    const delay = Math.round((pt.options.t || 0) * spread);
+    g.classList.add('impact-pop');
+    g.style.animationDelay = delay + 'ms';
+    const add = (cls, rad, d) => {
+      const c = document.createElementNS(SVG_NS, 'circle');
+      c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', rad);
+      c.setAttribute('class', cls); c.style.animationDelay = d + 'ms';
+      setTimeout(() => c.remove(), d + 1500);   // rings last 1.3s; timer-based so cleanup never depends on animation events
+      g.parentNode.appendChild(c);
+    };
+    add('impact-flash', r * 0.9, delay);
+    add('impact-ring', r, delay);
+    add('impact-ring', r, delay + 200);
+  });
+}
+
+function cool(p) {
+  const s = state[p.id], nowSeries = s.map.get('now');
+  s.map.container.classList.remove('hot');
+  const from = rgbOf(css(p.newColor)), to = rgbOf(css('--past')), t0 = Date.now();
+  const mix = k => `rgb(${from.map((c, j) => Math.round(c + (to[j] - c) * k)).join(',')})`;
+  const bar = s.tl.series[0].points[s.frame];
+  const step = () => {
+    const k = Math.min(1, (Date.now() - t0) / COOL_FADE), e = k * (2 - k);   // ease-out
+    nowSeries.points.forEach(pt => pt.graphic && pt.graphic.attr({ fill: mix(e), 'fill-opacity': 0.9 - (0.9 - pastA()) * e, 'stroke-width': 1 - e }));
+    if (bar && bar.graphic) bar.graphic.attr({ fill: mix(e) });
+    if (k < 1) { s.coolStep = setTimeout(step, 30); return; }
+    // Persist the faded style so hover/redraw keep it.
+    nowSeries.update({ color: hexA(css('--past'), pastA()), marker: { lineWidth: 0, fillOpacity: 1 } }, false);
+    if (bar) bar.update({ color: hexA(css('--past'), Math.min(1, pastA() + 0.4)) }, false, false);
+    s.map.redraw(false); s.tl.redraw(false);
+    s.cooled = true;
+  };
+  step();
+}
+
+function stop(p) {
+  const s = state[p.id];
+  clearInterval(s.timer); s.timer = null;
+  const b = document.querySelector(`#${p.id} [data-play]`);
+  b.textContent = '▶ Play';
+  b.setAttribute('aria-label', `Play ${p.id === 'craters' ? 'crater' : 'fireball'} animation`);
+  Sound.stop();
+}
+
+function play(p) {
+  const s = state[p.id];
+  Sound.start();   // must run inside the click: browsers only allow audio after a user gesture
+  if (s.frame >= p.frames.length - 1) go(p, 0);
+  const b = document.querySelector(`#${p.id} [data-play]`);
+  b.textContent = '❚❚ Pause';
+  b.setAttribute('aria-label', 'Pause animation');
+  s.timer = setInterval(() => {
+    if (s.frame >= p.frames.length - 1) return stop(p);
+    go(p, s.frame + 1);
+  }, p.speed / (s.mul || 1));
+}
+
+(async function init() {
+  topo = await fetch(TOPO_URL).then(r => r.json());
+  PANELS.forEach(p => {
+    state[p.id] = { frame: p.frames.length - 1, timer: null };   // start on the full picture
+    build(p);
+    const el = document.getElementById(p.id);
+    el.querySelector('[data-play]').addEventListener('click', () => state[p.id].timer ? stop(p) : play(p));
+    el.querySelector('[data-slider]').addEventListener('input', e => { stop(p); go(p, +e.target.value); });
+    const sb = el.querySelector('[data-sound]');
+    const markSound = () => { sb.textContent = Sound.enabled ? '🔊 Sound on' : '🔇 Sound off'; sb.setAttribute('aria-pressed', String(Sound.enabled)); };
+    markSound();
+    sb.addEventListener('click', () => { Sound.set(!Sound.enabled, !!state[p.id].timer); markSound(); });
+    el.querySelectorAll('[data-speed] button').forEach(b => b.addEventListener('click', () => {
+      const s = state[p.id];
+      s.mul = +b.dataset.mul;
+      el.querySelectorAll('[data-speed] button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      if (s.timer) { clearInterval(s.timer); s.timer = null; play(p); }   // apply new speed without losing the frame
+    }));
+  });
+  // Theme switch: Auto follows the OS; Light/Dark stamp data-theme on <html>.
+  const root = document.documentElement, sw = document.querySelectorAll('[data-theme-switch] button');
+  const mark = () => sw.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.set === (root.dataset.theme || 'auto'))));
+  sw.forEach(b => b.addEventListener('click', () => {
+    const v = b.dataset.set;
+    if (v === 'auto') delete root.dataset.theme; else root.dataset.theme = v;
+    try { localStorage.setItem('meteor-theme', v); } catch (e) {}
+    mark();
+  }));
+  mark();
+  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+  const rebuild = () => PANELS.forEach(p => { const was = !!state[p.id].timer; stop(p); build(p); if (was) play(p); });
+  mq.addEventListener('change', rebuild);
+  new MutationObserver(rebuild).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();
+</script>
+</body>
+</html>
